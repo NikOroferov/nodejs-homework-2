@@ -6,10 +6,22 @@ const {
   joiFavoriteSchema,
   Contact,
 } = require("../../models/contact");
+const { auth } = require("../../middlewares");
 
-router.get("/", async (req, res, next) => {
+router.get("/", auth, async (req, res, next) => {
   try {
-    const contacts = await Contact.find({});
+    const { _id } = req.user;
+    const { page = 1, limit = 10, favorite } = req.query;
+    const skip = (page - 1) * limit;
+    const contacts = await Contact.find(
+      { owner: _id, favorite: favorite },
+      "",
+      {
+        skip,
+        limit: Number(limit),
+      }
+    ).populate("owner", "email subscription");
+
     res.json({
       status: "success",
       code: 200,
@@ -25,7 +37,10 @@ router.get("/", async (req, res, next) => {
 router.get("/:contactId", async (req, res, next) => {
   try {
     const { contactId } = req.params;
-    const result = await Contact.findById(contactId);
+    const result = await Contact.findById(contactId).populate(
+      "owner",
+      "email subscription"
+    );
     if (!result) {
       throw createError(404, `Contact with id=${contactId} not found`);
       return;
@@ -42,14 +57,15 @@ router.get("/:contactId", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", auth, async (req, res, next) => {
   try {
     const { error } = joiContactSchema.validate(req.body);
     if (error) {
       error.status = 400;
       next(error);
     }
-    const result = await Contact.create(req.body);
+    const { _id } = req.user;
+    const result = await Contact.create({ ...req.body, owner: _id });
     res.status(201).json({
       status: "success",
       code: 201,

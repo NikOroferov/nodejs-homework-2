@@ -1,19 +1,27 @@
 const express = require("express");
 const router = express.Router();
 const createError = require("http-errors");
-const Joi = require("joi");
+const {
+  joiContactSchema,
+  joiFavoriteSchema,
+  Contact,
+} = require("../../models/contact");
+const { auth } = require("../../middlewares");
 
-const addContactSchema = Joi.object({
-  name: Joi.string().required(),
-  phone: Joi.string().required(),
-  email: Joi.string().required(),
-});
-
-const contactsOperation = require("../../model/index.js");
-
-router.get("/", async (req, res, next) => {
+router.get("/", auth, async (req, res, next) => {
   try {
-    const contacts = await contactsOperation.listContacts();
+    const { _id } = req.user;
+    const { page = 1, limit = 10, favorite } = req.query;
+    const skip = (page - 1) * limit;
+    const contacts = await Contact.find(
+      { owner: _id, favorite: favorite },
+      "",
+      {
+        skip,
+        limit: Number(limit),
+      }
+    ).populate("owner", "email subscription");
+
     res.json({
       status: "success",
       code: 200,
@@ -29,9 +37,12 @@ router.get("/", async (req, res, next) => {
 router.get("/:contactId", async (req, res, next) => {
   try {
     const { contactId } = req.params;
-    const result = await contactsOperation.getContactById(contactId);
+    const result = await Contact.findById(contactId).populate(
+      "owner",
+      "email subscription"
+    );
     if (!result) {
-      throw createError(404, `Product with id=${contactId} not found`);
+      throw createError(404, `Contact with id=${contactId} not found`);
       return;
     }
     res.json({
@@ -46,14 +57,15 @@ router.get("/:contactId", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", auth, async (req, res, next) => {
   try {
-    const { error } = addContactSchema.validate(req.body);
+    const { error } = joiContactSchema.validate(req.body);
     if (error) {
       error.status = 400;
       next(error);
     }
-    const result = await contactsOperation.addContact(req.body);
+    const { _id } = req.user;
+    const result = await Contact.create({ ...req.body, owner: _id });
     res.status(201).json({
       status: "success",
       code: 201,
@@ -69,9 +81,9 @@ router.post("/", async (req, res, next) => {
 router.delete("/:contactId", async (req, res, next) => {
   try {
     const { contactId } = req.params;
-    const result = await contactsOperation.removeContact(contactId);
+    const result = await Contact.findByIdAndRemove(contactId);
     if (!result) {
-      throw createError(404, `Product with id=${contactId} not found`);
+      throw createError(404, `Contact with id=${contactId} not found`);
       return;
     }
     res.json({
@@ -89,21 +101,52 @@ router.delete("/:contactId", async (req, res, next) => {
 
 router.put("/:contactId", async (req, res, next) => {
   try {
-    const { error } = addContactSchema.validate(req.body);
+    const { error } = joiContactSchema.validate(req.body);
     if (error) {
       error.status = 400;
       throw error;
     }
     const { contactId } = req.params;
-    const result = await contactsOperation.updateContact(contactId, req.body);
+    const result = await Contact.findByIdAndUpdate(contactId, req.body);
     if (!result) {
-      throw createError(404, `Product with id=${contactId} not found`);
+      throw createError(404, `Contact with id=${contactId} not found`);
       return;
     }
     res.json({
       message: "contact updated",
       status: "success",
       code: 200,
+      data: {
+        result,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/:contactId/favorite", async (req, res, next) => {
+  try {
+    const { error } = joiFavoriteSchema.validate(req.body);
+    if (error) {
+      error.status = 400;
+      error.message = "missing field favorite";
+      throw error;
+    }
+    const { contactId } = req.params;
+    const { favorite } = req.body;
+    const result = await Contact.findByIdAndUpdate(
+      contactId,
+      { favorite },
+      { new: true }
+    );
+    if (!result) {
+      throw createError(`Contact with id=${contactId} not found`);
+    }
+    res.json({
+      status: "success",
+      code: 200,
+      message: "contact update",
       data: {
         result,
       },

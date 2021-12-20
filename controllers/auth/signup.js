@@ -1,5 +1,6 @@
 const { Conflict } = require("http-errors");
 const { joiRegisterSchema, User } = require("../../models/user");
+const gravatar = require("gravatar");
 
 const signup = async (req, res, next) => {
   try {
@@ -14,7 +15,9 @@ const signup = async (req, res, next) => {
     if (user) {
       throw new Conflict(`User with email ${email} alredy exist`);
     }
-    const newUser = new User({ email });
+
+    const avatarURL = gravatar.url(email);
+    const newUser = new User({ email, avatarURL });
     newUser.setPassword(password);
     newUser.save();
     res.status(201).json({
@@ -24,6 +27,7 @@ const signup = async (req, res, next) => {
         user: {
           email,
           subscription: "starter",
+          avatarURL,
         },
       },
     });

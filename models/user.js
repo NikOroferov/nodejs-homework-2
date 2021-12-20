@@ -1,6 +1,7 @@
 const { Schema, model } = require("mongoose");
 const Joi = require("joi");
 const bcrypt = require("bcrypt");
+const gravatar = require("gravatar");
 
 const userSchema = Schema(
   {
@@ -22,6 +23,10 @@ const userSchema = Schema(
     token: {
       type: String,
       default: null,
+    },
+    avatarURL: {
+      type: String,
+      require: true,
     },
   },
   { versionKey: false, timestamps: true }

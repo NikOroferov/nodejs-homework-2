@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const { contacts: ctrl } = require("../../controllers");
-const { auth } = require("../../middlewares");
+const { auth, upload } = require("../../middlewares");
+const fs = require("fs/promises");
 
 router.get("/", auth, ctrl.getAll);
 
